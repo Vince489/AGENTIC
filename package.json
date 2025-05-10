@@ -1,0 +1,49 @@
+{
+  "name": "@virtron/agency",
+  "version": "0.1.0",
+  "description": "Core components for building AI agent systems with Agency.js",
+  "main": "./src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Vincent M. Cornelius II <vincent@virtron.cc>",
+  "license": "MIT",
+  "keywords": [
+    "agent",
+    "agentic",
+    "workflow",
+    "ai",
+    "framework",
+    "agency",
+    "llm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "module": "./src/index.js",
+  "exports": {
+    ".": {
+      "require": "./src/index.js",
+      "import": "./src/index.js"
+    },
+    "./Agency": {
+      "require": "./src/Agency.js",
+      "import": "./src/Agency.js"
+    },
+    "./Agent": {
+      "require": "./src/Agent.js",
+      "import": "./src/Agent.js"
+    },
+    "./Team": {
+      "require": "./src/Team.js",
+      "import": "./src/Team.js"
+    }
+  },
+  "dependencies": {
+    "@google/genai": "^0.13.0",
+    "dotenv": "^16.5.0",
+    "mathjs": "^14.4.0"
+  }
+}
