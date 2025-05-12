@@ -35,7 +35,8 @@ export class GeminiProvider {
           }
         });
         
-        return response.text;
+        // Access the text content from the response structure
+        return response.candidates[0].content.parts[0].text;
       });
     } catch (error) {
       console.error('Error calling Gemini:', error);
