@@ -153,49 +153,6 @@ class LLMProvider {
 }
 
 /**
- * Interface for a Tool Handler.
- */
-class ToolHandler {
-  async handleToolCalls(responseText, tools, callToolFn, formatToolResultFn) {
-    throw new Error("Subclasses must implement handleToolCalls.");
-  }
-}
-
-/**
- * Default Tool Handler (using [TOOL: ...] syntax).
- */
-class DefaultToolHandler extends ToolHandler {
-  async handleToolCalls(responseText, tools, callToolFn, formatToolResultFn) {
-    const toolCallRegex = /\[TOOL: (\w+)\(([^)]*)\)\]/g;
-    let match;
-    let processedResponse = responseText;
-    const toolCalls = [];
-
-    while ((match = toolCallRegex.exec(responseText)) !== null) {
-      const toolName = match[1];
-      const toolParams = match[2];
-      if (tools[toolName]) {
-        toolCalls.push({ toolName, toolParams, fullMatch: match[0] });
-      }
-    }
-
-    for (const call of toolCalls) {
-      try {
-        console.log(`Executing tool: ${call.toolName} with params: ${call.toolParams}`);
-        const toolResult = await callToolFn(call.toolName, call.toolParams);
-        const formattedResult = formatToolResultFn(call.toolName, call.toolParams, toolResult);
-        processedResponse = processedResponse.replace(call.fullMatch, formattedResult);
-      } catch (error) {
-        console.error(`Error executing tool ${call.toolName}:`, error);
-        processedResponse = processedResponse.replace(call.fullMatch, `Error executing ${call.toolName}: ${error.message}`);
-      }
-    }
-
-    return processedResponse;
-  }
-}
-
-/**
  * Base Agent (Composable with LLM Provider, Tool Handler, and Event System).
  */
 export class Agent {
@@ -220,7 +177,7 @@ export class Agent {
     this.llmProvider = config.llmProvider;
     
     // Component systems
-    this.toolHandler = config.toolHandler || new DefaultToolHandler();
+    this.toolHandler = config.toolHandler
     this.memory = config.memoryManager || new MemoryManager(config.memoryConfig);
     this.events = new EventEmitter();
     
@@ -230,14 +187,6 @@ export class Agent {
     
     // Formatter functions
     this.inputFormatter = config.inputFormatter || ((input) => [{ role: "user", parts: [{ text: String(input) }] }]);
-    this.responseProcessor = config.responseProcessor || ((llmResponse) => {
-      if (llmResponse && llmResponse.candidates && llmResponse.candidates[0] && llmResponse.candidates[0].content && llmResponse.candidates[0].content.parts) {
-        return llmResponse.candidates[0].content.parts.map(part => part.text).join('');
-      } else if (typeof llmResponse === 'string') {
-        return llmResponse;
-      }
-      return '';
-    });
     this.toolResultFormatter = config.toolResultFormatter || ((toolName, toolParams, toolResult) => {
       let formatted = `\n\n### Result of ${toolName}("${toolParams}"):\n\n`;
       if (Array.isArray(toolResult)) {
@@ -338,16 +287,26 @@ export class Agent {
       this.events.emit('llmResponseReceived', { agent: this.id, llmResponse });
       
       // Process response and handle tool calls
-      let processedResponse = await this.responseProcessor(llmResponse);
+      // The LLM provider should return the text directly
+      let processedResponse = llmResponse; 
       this.events.emit('responseProcessed', { agent: this.id, processedResponse });
 
       if (Object.keys(this.tools).length > 0 && this.toolHandler) {
         processedResponse = await this.toolHandler.handleToolCalls(
-          processedResponse,
+          processedResponse, // Pass the text directly
           this.tools,
           async (toolName, params) => {
             this.events.emit('toolCalled', { agent: this.id, toolName, params });
-            const result = await this.tools[toolName](params);
+            let result;
+            if (typeof this.tools[toolName]?.execute === 'function') {
+              // If the tool is an object with an execute method, call it
+              result = await this.tools[toolName].execute(params);
+            } else if (typeof this.tools[toolName] === 'function') {
+              // If the tool is a function, call it directly
+              result = await this.tools[toolName](params);
+            } else {
+              throw new Error(`Tool "${toolName}" is not a function or an object with an execute method.`);
+            }
             this.events.emit('toolCompleted', { agent: this.id, toolName, params, result });
             return result;
           },
@@ -414,5 +373,4 @@ export class Agent {
 }
 
 // Export all classes
-export { EventEmitter, MemoryManager, LLMProvider, ToolHandler, DefaultToolHandler };
-
+export { EventEmitter, MemoryManager, LLMProvider };
